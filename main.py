@@ -1,12 +1,18 @@
 import cv2
 import os
 import numpy as np
+import tensorflow as tf
 from deepface import DeepFace
 
 DATASET_PATH = "dataset"
+EMOTION_MODEL_PATH = "emotion_recognition/improved_aug_emotion_model.keras"
+
+emotion_classes = ["angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"]
+
+emotion_model = tf.keras.models.load_model(EMOTION_MODEL_PATH)
 
 # =========================
-# 1. CHARGER DATASET (UNE FOIS)
+# 1. CHARGER DATASET PERSONNES
 # =========================
 known_embeddings = {}
 
@@ -32,7 +38,7 @@ for person in os.listdir(DATASET_PATH):
 print("Dataset chargé ✔")
 
 # =========================
-# 2. FONCTION DISTANCE
+# 2. DISTANCE
 # =========================
 def cosine_distance(a, b):
     a = np.array(a)
@@ -40,7 +46,29 @@ def cosine_distance(a, b):
     return np.linalg.norm(a - b)
 
 # =========================
-# 3. CAMERA
+# 3. PREDICTION EMOTION
+# =========================
+def predict_emotion(face_img):
+    try:
+        gray = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.resize(gray, (48, 48))
+
+        img = np.expand_dims(gray, axis=-1)
+        img = np.expand_dims(img, axis=0)
+
+        preds = emotion_model.predict(img, verbose=0)
+        idx = np.argmax(preds)
+
+        emotion = emotion_classes[idx]
+        confidence = preds[0][idx]
+
+        return emotion, confidence
+
+    except:
+        return "unknown", 0.0
+
+# =========================
+# 4. CAMERA
 # =========================
 cap = cv2.VideoCapture(0)
 frame_count = 0
@@ -52,7 +80,6 @@ while True:
 
     frame_count += 1
 
-    # 🔥 rendre plus rapide (skip frames)
     if frame_count % 2 != 0:
         continue
 
@@ -90,15 +117,26 @@ while True:
         except:
             name = "Unknown"
 
+        emotion, emotion_conf = predict_emotion(face_img)
+
         color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
 
+        label = f"{name} | {emotion} ({emotion_conf:.2f})"
+
         cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
-        cv2.putText(frame, name, (x, y-10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+        cv2.putText(
+            frame,
+            label,
+            (x, y-10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            color,
+            2
+        )
 
-    cv2.imshow("Face Recognition FAST", frame)
+    cv2.imshow("FaceSense - Face + Emotion Recognition", frame)
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    if cv2.waitKey(1) & 0xFF == ord("q"):
         break
 
 cap.release()
