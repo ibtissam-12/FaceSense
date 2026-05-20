@@ -35,7 +35,7 @@ for person in os.listdir(DATASET_PATH):
 
             known_embeddings[person] = embedding
 
-print("Dataset chargé ✔")
+print("Dataset chargé ")
 
 # =========================
 # 2. DISTANCE
